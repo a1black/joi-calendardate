@@ -1,7 +1,7 @@
 {
   "name": "joi-calendardate",
   "version": "0.1.0",
-  "description": "",
+  "description": "Joi extension to validate date that described as a string without time component",
   "author": "Aleksey Chernyaev",
   "license": "BSD-3-Clause",
   "repository": "github:a1black/joi-calendardate",
@@ -32,6 +32,7 @@
     "node": ">=14"
   },
   "devDependencies": {
+    "@types/jest": "^26.0.23",
     "dtslint": "^4.1.0",
     "eslint": "^7.29.0",
     "eslint-config-prettier": "^8.3.0",
@@ -46,5 +47,8 @@
     "pretty",
     "lint",
     "test"
-  ]
+  ],
+  "dependencies": {
+    "dayjs": "^1.10.5"
+  }
 }
