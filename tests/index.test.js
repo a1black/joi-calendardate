@@ -1,6 +1,12 @@
 /** @type {import('joi')} */
 const joi = require('joi').extend(require('../index'))
 
+/** @type {(date: Date) => string} */
+const isodate = date => date.toISOString().split('T')[0]
+
+/** @type {() => string} */
+const today = () => isodate(new Date())
+
 describe('format argument testsuit', () => {
   describe('invalid format argument, throws Error', () => {
     test.each(['YY MM', 'YYY MM DD', 'YY MM MM', 'YY mm DD', 'YYYY MM DD HH'])(
@@ -107,4 +113,101 @@ describe('trim rule testsuit', () => {
       joi.attempt(' 2021-06-28 ', schema, { convert: false })
     ).toThrow('must not have leading or trailing whitespace')
   })
+})
+
+describe('compare recieves argument of invalid type, throws Error', () => {
+  test.each([1624924800000, [2021, 5, 28]])('%s', value => {
+    expect(() => joi.calendardate().eq(value)).toThrow(
+      'date expected Date instance or valid ISO formatted calendar date'
+    )
+  })
+})
+
+describe('eq rule testsuit', () => {
+  describe('vlaue is equal to date, expect validated date', () => {
+    test.each([
+      ['2021-06-28', new Date(2021, 5, 28)],
+      ['2021-06-28', '2021-06-28'],
+      [today(), 'today']
+    ])('%s === %s', (expected, date) => {
+      const schema = joi.calendardate().eq(date)
+      expect(joi.attempt(expected, schema)).toBe(expected)
+    })
+  })
+
+  describe('value is not equal to date, throws ValidationError', () => {
+    test.each([
+      ['2021-06-28', new Date(2021, 5, 27)],
+      ['2021-06-28', '2021-06-29'],
+      [today(), 'tomorrow'],
+      [today(), 'yesterday']
+    ])('%s !== %s', (expected, date) => {
+      const schema = joi.calendardate().eq(date)
+      expect(() => joi.attempt(expected, schema)).toThrow('must be equal to')
+    })
+  })
+})
+
+describe('gt rule testsuit', () => {
+  describe('value is greater than date, expect ISO date string', () => {
+    test.each([
+      ['2021-06-28', new Date(2021, 5, 27)],
+      ['2021-06-28', '2021-06-27'],
+      [today(), 'yesterday']
+    ])('%s > %s', (expected, date) => {
+      const schema = joi.calendardate().gt(date)
+      expect(joi.attempt(expected, schema)).toBe(expected)
+    })
+  })
+
+  describe('value is less than date, throws ValidationError', () => {
+    test.each([
+      ['2021-06-28', new Date(2021, 5, 29)],
+      ['2021-06-28', '2021-06-29'],
+      [today(), 'tomorrow'],
+      [today(), 'today']
+    ])('%s <= %s', (expected, date) => {
+      const schema = joi.calendardate().gt(date)
+      expect(() => joi.attempt(expected, schema)).toThrow(
+        'must be greater than'
+      )
+    })
+  })
+})
+
+describe('lt rule testsuit', () => {
+  describe('value is less than date, expect ISO date string', () => {
+    test.each([
+      ['2021-06-28', new Date(2021, 5, 29)],
+      ['2021-06-28', '2021-06-29'],
+      [today(), 'tomorrow']
+    ])('%s < %s', (expected, date) => {
+      const schema = joi.calendardate().lt(date)
+      expect(joi.attempt(expected, schema)).toBe(expected)
+    })
+  })
+
+  describe('value is greater than date, throws ValidationError', () => {
+    test.each([
+      ['2021-06-28', new Date(2021, 5, 27)],
+      ['2021-06-28', '2021-06-27'],
+      [today(), 'today'],
+      [today(), 'yesterday']
+    ])('%s >= %s', (expected, date) => {
+      const schema = joi.calendardate().lt(date)
+      expect(() => joi.attempt(expected, schema)).toThrow('must be less than')
+    })
+  })
+})
+
+test('value is in the future, expect ISO date string', () => {
+  const expected = isodate(new Date(Date.now() + 24 * 3600 * 1000))
+  const schema = joi.calendardate().future()
+  expect(joi.attempt(expected, schema)).toBe(expected)
+})
+
+test('value is in the past, expect ISO date string', () => {
+  const expected = isodate(new Date(Date.now() - 24 * 3600 * 1000))
+  const schema = joi.calendardate().past()
+  expect(joi.attempt(expected, schema)).toBe(expected)
 })

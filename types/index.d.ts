@@ -9,19 +9,19 @@ declare module 'joi' {
     trim(enabled?: boolean): this;
 
     /** Specifies that the value must be equal to `date`. */
-    eq(date: string): this;
+    eq(date: 'today' | 'tommorow' | 'yesterday' | string | Date): this;
 
     /** Specifies that value must be greater or equal to `date`. */
-    ge(date: string): this;
+    ge(date: 'today' | 'tommorow' | 'yesterday' | string | Date): this;
 
     /** Specifies that the value must be greater than `date`. */
-    gt(date: string): this;
+    gt(date: 'today' | 'tommorow' | 'yesterday' | string | Date): this;
 
     /** Specifies that value must be less or equal to `date`. */
-    le(date: string): this;
+    le(date: 'today' | 'tommorow' | 'yesterday' | string | Date): this;
 
     /** Specifies that the value must be less than `date`. */
-    lt(date: string): this;
+    lt(date: 'today' | 'tommorow' | 'yesterday' | string | Date): this;
 
     /** Specifies that the value must be a date in the future. */
     future(): this;
