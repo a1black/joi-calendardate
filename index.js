@@ -1,26 +1,17 @@
 const dayjs = require('dayjs')
 dayjs.extend(require('dayjs/plugin/customParseFormat'))
 
-/** @typedef {(value: string) => number[]|null} DateParser */
-
 const DEF_FORMAT = 'YYYY-MM-DD'
+const comparisonOp = {
+  eq: (a, b) => a === b,
+  ge: (a, b) => a >= b,
+  gt: (a, b) => a > b,
+  le: (a, b) => a <= b,
+  lt: (a, b) => a < b,
+  ne: (a, b) => a !== b
+}
 
 const internals = {
-  /** @type {(value: any) => value is Function} */
-  isFunction: value => typeof value === 'function',
-
-  /** @type {(value: any) => value is string} */
-  isString: value => typeof value === 'string' || value instanceof String,
-
-  /** @type {(value: string, format: string, error: Function) => string|Error} */
-  parse: (value, format, error) => {
-    const date = dayjs(value, format, true)
-    return date.isValid()
-      ? date.format(DEF_FORMAT)
-      : error('calendardate.format', { value, format })
-  },
-
-  /** @type {(value: string, parser: DateParser, error: Function) => string|Error} */
   customParse: (value, parser, error) => {
     const parsed = parser(value)
     const [y, m, d] = Array.isArray(parsed) ? parsed : []
@@ -30,30 +21,52 @@ const internals = {
       : error('calendardate.parse', { value })
   },
 
-  /** @type {(value: string, date: string) => boolean} */
-  eqRule: (value, date) => value === date,
+  isFunction: value => typeof value === 'function',
 
-  /** @type {(value: string, date: string) => boolean} */
-  gtRule: (value, date) => dayjs(value).diff(date) > 0,
+  isString: value => typeof value === 'string' || value instanceof String,
 
-  /** @type {(value: string, date: string) => boolean} */
-  ltRule: (value, date) => dayjs(value).diff(date) < 0
+  normalizeDate: value => {
+    value =
+      value === 'today'
+        ? dayjs().toDate()
+        : value === 'tomorrow'
+        ? dayjs().add(1, 'day').toDate()
+        : value === 'yesterday'
+        ? dayjs().subtract(1, 'day').toDate()
+        : value
+    return value instanceof Date ? dayjs(value).format(DEF_FORMAT) : value
+  },
+
+  normalizeCompareOptions: value => {
+    const knownOptions = ['exact', 'less', 'more']
+    const normalized = {}
+    for (const [name, option] of Object.entries(value ?? {})) {
+      if (knownOptions.includes(name) && option) {
+        normalized[name] = internals.isString(option)
+          ? option
+              .split(' ')
+              .map((value, index) => (!index ? parseInt(value) : value))
+          : option
+      }
+    }
+
+    return normalized
+  },
+
+  parse: (value, format, error) => {
+    const date = dayjs(value, format, true)
+    return date.isValid()
+      ? date.format(DEF_FORMAT)
+      : error('calendardate.format', { value, format })
+  }
 }
 
-/** @type {import('joi').ExtensionFactory} */
 const joiCalendardate = joi => {
   const args = {
-    /** @type {(value: any) => boolean} */
-    date: value => {
-      /** Checks of value is valid ISO formatted date. */
-      return (
-        internals.isString(value) && dayjs(value, DEF_FORMAT, true).isValid()
-      )
-    },
+    date: value =>
+      internals.isString(value) && dayjs(value, DEF_FORMAT, true).isValid(),
 
-    /** @type {(value: string) => boolean} */
     format: value => {
-      /** Checks if formatting string is valid or not. */
       const matches = value.match(
         /^(YYYY|YY|MM|M|DD|D)[-,./\s]*(YYYY|YY|MM|M|DD|D)[-,./\s]*(YYYY|YY|MM|M|DD|D)$/
       )
@@ -63,6 +76,19 @@ const joiCalendardate = joi => {
         dateparts
           .map(part => part[0][0])
           .filter((el, index, arr) => arr.indexOf(el) === index).length === 3
+      )
+    },
+
+    compareOptions: value => {
+      const duration = value =>
+        Array.isArray(value) &&
+        value[0] > 0 &&
+        /^(d(ays?)?|w(eeks?)?|months?|quarters?|y(ears?)?|Q|M)$/.test(value[1])
+
+      return (
+        typeof value === 'object' &&
+        value &&
+        Object.values(value).every(duration)
       )
     }
   }
@@ -75,13 +101,19 @@ const joiCalendardate = joi => {
       'calendardate.base': '{{#label}} must be a string',
       'calendardate.empty': '{{#label}} is not allowed to be empty',
       'calendardate.eq': '{{#label}} must be equal to {{:#date}}',
-      'calendardate.future': '{{#label}} must be in the future',
+      'calendardate.exact':
+        '{{#label}} must differ from {{:#date}} by exactly {{:#duration}}',
       'calendardate.format':
         '{{#label}} must be a valid date in {{:#format}} format',
+      'calendardate.future': '{{#label}} must be in the future',
       'calendardate.ge': '{{#label}} must be greater or equal to {{:#date}}',
       'calendardate.gt': '{{#label}} must be greater than {{:#date}}',
       'calendardate.le': '{{#label}} must be less or equal to {{:#date}}',
+      'calendardate.less':
+        '{{#label}} must differ from {{:#date}} by less than {{:#duration}}',
       'calendardate.lt': '{{#label}} must be less than {{:#date}}',
+      'calendardate.more':
+        '{{#label}} must differ from {{:#date}} by more than {{:#duration}}',
       'calendardate.parse':
         '{{#label}} with value {:[.]} fails to be parsed by a callback',
       'calendardate.past': '{{#label}} must be in the past',
@@ -112,7 +144,7 @@ const joiCalendardate = joi => {
         return { value, errors: error('calendardate.trim') }
       }
 
-      const format = schema.$_getFlag('format') || 'YYYY-MM-DD'
+      const format = schema.$_getFlag('format') || DEF_FORMAT
       if (format) {
         const parsed = internals.isFunction(format)
           ? internals.customParse(value, format, error)
@@ -128,21 +160,141 @@ const joiCalendardate = joi => {
     },
 
     rules: {
-      // Requires that validated value matches `format`.
+      compare: {
+        method: false,
+        args: [
+          {
+            assert: args.date,
+            normalize: internals.normalizeDate,
+            name: 'date',
+            message:
+              'expected Date instance or valid ISO formatted calendar date',
+            ref: true
+          },
+          {
+            assert: args.compareOptions,
+            normalize: internals.normalizeCompareOptions,
+            name: 'options',
+            message:
+              'expected plain object that have "exact", "less" or "more" properties' +
+              ' which values are an array or a string contain natural number and time unit'
+          }
+        ],
+        validate(value, { error }, { date, options }, { name, operator }) {
+          const minuend = dayjs(value)
+          const sub = dayjs(date)
+          const diffComare = {
+            exact: (diff, unit) =>
+              comparisonOp.eq(Math.abs(minuend.diff(sub, unit)), diff),
+            less: (diff, unit) =>
+              comparisonOp.lt(Math.abs(minuend.diff(sub, unit)), diff),
+            more: (diff, unit) =>
+              comparisonOp.gt(Math.abs(minuend.diff(sub, unit)), diff)
+          }
+
+          if (!operator(minuend.diff(sub), 0)) {
+            return error(`calendardate.${name}`, { date })
+          }
+          for (const [rule, [diff, unit]] of Object.entries(options ?? {})) {
+            if (!diffComare[rule](diff, unit)) {
+              return error(`calendardate.${rule}`, {
+                date,
+                duration: `${diff} ${unit}`
+              })
+            }
+          }
+
+          return value
+        }
+      },
+      eq: {
+        args: ['date', 'options'],
+        method(date, options) {
+          return this.$_addRule({
+            name: 'eq',
+            method: 'compare',
+            args: { date, options },
+            operator: comparisonOp.eq
+          })
+        }
+      },
       format: {
         method(format) {
           if (!internals.isString(format) && !internals.isFunction(format)) {
-            throw new Error(
-              `format expected non-empty string or a function, got '${format}'`
-            )
+            throw new Error(`format expected non-empty string or a function`)
           } else if (internals.isString(format) && !args.format(format)) {
-            throw new Error(`Invalid format string: '${format}'`)
+            throw new Error(`format invalid formatting string: '${format}'`)
           }
 
           return this.$_setFlag('format', format)
         }
       },
-      // Requires that validated value hasn't got trailing spaces.
+      future: {
+        args: ['date', 'options'],
+        method(options) {
+          return this.$_addRule({
+            name: 'future',
+            method: 'compare',
+            args: { date: 'today', options },
+            operator: comparisonOp.gt
+          })
+        }
+      },
+      ge: {
+        args: ['date', 'options'],
+        method(date, options) {
+          return this.$_addRule({
+            name: 'ge',
+            method: 'compare',
+            args: { date, options },
+            operator: comparisonOp.ge
+          })
+        }
+      },
+      gt: {
+        args: ['date', 'options'],
+        method(date, options) {
+          return this.$_addRule({
+            name: 'gt',
+            method: 'compare',
+            args: { date, options },
+            operator: comparisonOp.gt
+          })
+        }
+      },
+      le: {
+        args: ['date', 'options'],
+        method(date, options) {
+          return this.$_addRule({
+            name: 'le',
+            method: 'compare',
+            args: { date, options },
+            operator: comparisonOp.le
+          })
+        }
+      },
+      lt: {
+        args: ['date', 'options'],
+        method(date, options) {
+          return this.$_addRule({
+            name: 'lt',
+            method: 'compare',
+            args: { date, options },
+            operator: comparisonOp.lt
+          })
+        }
+      },
+      past: {
+        args: ['date', 'options'],
+        method(options) {
+          return this.$_addRule({
+            name: 'past',
+            method: 'compare',
+            args: { date: 'today', options },
+            operator: comparisonOp.lt
+          })
+        }
+      },
       trim: {
         convert: true,
         method(enabled = true) {
@@ -151,147 +303,6 @@ const joiCalendardate = joi => {
           }
 
           return this.$_setFlag('trim', enabled)
-        }
-      },
-      compare: {
-        method: false,
-        args: [
-          {
-            /** @type {(value: any) => boolean} */
-            assert: args.date,
-            /** @type {(value: string|Date) => string} */
-            normalize: value => {
-              value =
-                value === 'today'
-                  ? dayjs().toDate()
-                  : value === 'tomorrow'
-                  ? dayjs().add(1, 'day').toDate()
-                  : value === 'yesterday'
-                  ? dayjs().subtract(1, 'day').toDate()
-                  : value
-              return value instanceof Date
-                ? dayjs(value).format(DEF_FORMAT)
-                : value
-            },
-            name: 'date',
-            message:
-              'expected Date instance or valid ISO formatted calendar date',
-            ref: true
-          },
-          'code',
-          'eq',
-          'gt',
-          'lt'
-        ],
-        validate(value, { error }, { code, date, eq, gt, lt }) {
-          if (typeof date !== 'string') throw new Error('NOPE')
-          const rules = []
-          if (eq) rules.push(internals.eqRule)
-          if (gt) rules.push(internals.gtRule)
-          if (lt) rules.push(internals.ltRule)
-
-          return rules.some(rule => rule(value, date))
-            ? value
-            : error(code, { value, date })
-        }
-      },
-
-      eq: {
-        method(date) {
-          return this.$_addRule({
-            name: 'compare',
-            args: {
-              code: 'calendardate.eq',
-              date,
-              eq: true,
-              gt: false,
-              lt: false
-            }
-          })
-        }
-      },
-      gt: {
-        method(date) {
-          return this.$_addRule({
-            name: 'compare',
-            args: {
-              code: 'calendardate.gt',
-              date,
-              eq: false,
-              gt: true,
-              lt: false
-            }
-          })
-        }
-      },
-      ge: {
-        method(date) {
-          return this.$_addRule({
-            name: 'compare',
-            args: {
-              code: 'calendardate.ge',
-              date,
-              eq: true,
-              gt: true,
-              lt: false
-            }
-          })
-        }
-      },
-      lt: {
-        method(date) {
-          return this.$_addRule({
-            name: 'compare',
-            args: {
-              code: 'calendardate.lt',
-              date,
-              eq: false,
-              gt: false,
-              lt: true
-            }
-          })
-        }
-      },
-      le: {
-        method(date) {
-          return this.$_addRule({
-            name: 'compare',
-            args: {
-              code: 'calendardate.le',
-              date,
-              eq: true,
-              gt: false,
-              lt: true
-            }
-          })
-        }
-      },
-      future: {
-        method() {
-          return this.$_addRule({
-            name: 'compare',
-            args: {
-              code: 'calendardate.future',
-              date: 'today',
-              eq: false,
-              gt: true,
-              lt: false
-            }
-          })
-        }
-      },
-      past: {
-        method() {
-          return this.$_addRule({
-            name: 'compare',
-            args: {
-              code: 'calendardate.past',
-              date: 'today',
-              eq: false,
-              gt: false,
-              lt: true
-            }
-          })
         }
       }
     }
