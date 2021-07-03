@@ -13,12 +13,18 @@ const comparisonOp = {
 
 const internals = {
   customParse: (value, parser, error) => {
+    let date
     const parsed = parser(value)
-    const [y, m, d] = Array.isArray(parsed) ? parsed : []
-    const date = dayjs(new Date(y, m, d))
+    if (parsed instanceof Date) {
+      date = dayjs(parsed)
+    } else {
+      const [y, m, d] = Array.isArray(parsed) ? parsed : []
+      date = dayjs(new Date(y, m, d))
+    }
+
     return date.isValid()
-      ? date.format(DEF_FORMAT)
-      : error('calendardate.parse', { value })
+      ? { value: date.format(DEF_FORMAT) }
+      : { value, errors: error('calendardate.parse') }
   },
 
   isFunction: value => typeof value === 'function',
@@ -56,8 +62,8 @@ const internals = {
   parse: (value, format, error) => {
     const date = dayjs(value, format, true)
     return date.isValid()
-      ? date.format(DEF_FORMAT)
-      : error('calendardate.format', { value, format })
+      ? { value: date.format(DEF_FORMAT) }
+      : { value, errors: error('calendardate.format') }
   }
 }
 
@@ -122,9 +128,11 @@ const joiCalendardate = joi => {
     },
 
     coerce: {
-      from: 'string',
+      from: ['object', 'string'],
       method(value, { schema }) {
-        if (schema.$_getFlag('trim')) {
+        if (value instanceof Date) {
+          value = dayjs(value).format(schema.$_getFlag('format') || DEF_FORMAT)
+        } else if (internals.isString(value) && schema.$_getFlag('trim')) {
           value = value.trim()
         }
 
@@ -145,18 +153,9 @@ const joiCalendardate = joi => {
       }
 
       const format = schema.$_getFlag('format') || DEF_FORMAT
-      if (format) {
-        const parsed = internals.isFunction(format)
-          ? internals.customParse(value, format, error)
-          : internals.parse(value, format, error)
-        if (internals.isString(parsed)) {
-          value = parsed
-        } else {
-          return { value, errors: parsed }
-        }
-      }
-
-      return { value }
+      return internals.isFunction(format)
+        ? internals.customParse(value, format, error)
+        : internals.parse(value, format, error)
     },
 
     rules: {
@@ -208,12 +207,11 @@ const joiCalendardate = joi => {
         }
       },
       eq: {
-        args: ['date', 'options'],
-        method(date, options) {
+        method(date) {
           return this.$_addRule({
             name: 'eq',
             method: 'compare',
-            args: { date, options },
+            args: { date },
             operator: comparisonOp.eq
           })
         }
@@ -241,12 +239,11 @@ const joiCalendardate = joi => {
         }
       },
       ge: {
-        args: ['date', 'options'],
-        method(date, options) {
+        method(date) {
           return this.$_addRule({
             name: 'ge',
             method: 'compare',
-            args: { date, options },
+            args: { date },
             operator: comparisonOp.ge
           })
         }
@@ -263,12 +260,11 @@ const joiCalendardate = joi => {
         }
       },
       le: {
-        args: ['date', 'options'],
-        method(date, options) {
+        method(date) {
           return this.$_addRule({
             name: 'le',
             method: 'compare',
-            args: { date, options },
+            args: { date },
             operator: comparisonOp.le
           })
         }

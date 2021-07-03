@@ -1,10 +1,11 @@
 /** @type {import('joi')} */
 const joi = require('joi').extend(require('../index'))
 
-/** @type {(date: Date) => string} */
-const isodate = date => date.toISOString().split('T')[0]
+const isodate = date =>
+  `${date.getFullYear()}-` +
+  `${date.getMonth() + 1}-`.padStart(3, '0') +
+  `${date.getDate()}`.padStart(2, '0')
 
-/** @type {() => string} */
 const today = () => isodate(new Date())
 
 describe('format argument testsuit', () => {
@@ -36,6 +37,14 @@ describe('base validation', () => {
     const schema = joi.calendardate()
     expect(() => joi.attempt(1624924800000, schema)).toThrow('must be a string')
   })
+
+  test('convert input Date instance to string, expect ISO date string', () => {
+    const schema = joi
+      .calendardate()
+      .format('YYYY.MM.DD')
+      .prefs({ convert: true })
+    expect(joi.attempt(new Date(2021, 5, 28), schema)).toBe('2021-06-28')
+  })
 })
 
 describe('format rule testsuit', () => {
@@ -45,7 +54,7 @@ describe('format rule testsuit', () => {
     )
   })
 
-  test('default format, expect ISO formatted date', () => {
+  test('default format, expect ISO date string', () => {
     const input = '2021-06-28'
     expect(joi.attempt(input, joi.calendardate())).toBe(input)
   })
@@ -59,22 +68,26 @@ describe('format rule testsuit', () => {
   })
 
   describe('callback format returns wrong type, throws ValidationError', () => {
-    test.each([new Date(), Date.now(), [2021, 5], '2021-06-28'])(
-      '%s',
-      returnValue => {
-        const input = '2021-06-28'
-        const format = jest.fn().mockReturnValue(returnValue)
-        expect(() =>
-          joi.attempt(input, joi.calendardate().format(format))
-        ).toThrow('fails to be parsed by a callback')
-        expect(format).toHaveBeenCalledWith(input)
-      }
-    )
+    test.each([Date.now(), [2021, 5], '2021-06-28'])('%s', returnValue => {
+      const input = '2021-06-28'
+      const format = jest.fn().mockReturnValue(returnValue)
+      expect(() =>
+        joi.attempt(input, joi.calendardate().format(format))
+      ).toThrow('fails to be parsed by a callback')
+      expect(format).toHaveBeenCalledWith(input)
+    })
   })
 
-  test('callback format, expect ISO formated string', () => {
+  test('callback format returns array of date components, expect ISO date string', () => {
     const expected = '2021-06-28'
     const format = jest.fn().mockReturnValue([2021, 5, 28, 15, 34, 30])
+    const schema = joi.calendardate().format(format)
+    expect(joi.attempt(expected, schema)).toBe(expected)
+  })
+
+  test('callback format returns Date instance, expect ISO date string', () => {
+    const expected = '2021-06-28'
+    const format = jest.fn().mockReturnValue(new Date(2021, 5, 28))
     const schema = joi.calendardate().format(format)
     expect(joi.attempt(expected, schema)).toBe(expected)
   })
@@ -171,7 +184,7 @@ describe('compare rule options argument testsuit', () => {
 })
 
 describe('eq rule testsuit', () => {
-  describe('vlaue is equal to date, expect validated date', () => {
+  describe('value is equal to date, expect validated date', () => {
     test.each([
       ['2021-06-28', new Date(2021, 5, 28)],
       ['2021-06-28', '2021-06-28'],
@@ -248,15 +261,17 @@ describe('lt rule testsuit', () => {
 })
 
 test('value is in the future, expect ISO date string', () => {
-  const expected = isodate(new Date(Date.now() + 24 * 3600 * 1000))
+  const expected = new Date()
+  expected.setDate(expected.getDate() + 1)
   const schema = joi.calendardate().future()
-  expect(joi.attempt(expected, schema)).toBe(expected)
+  expect(joi.attempt(isodate(expected), schema)).toBe(isodate(expected))
 })
 
 test('value is in the past, expect ISO date string', () => {
-  const expected = isodate(new Date(Date.now() - 24 * 3600 * 1000))
+  const expected = new Date()
+  expected.setDate(expected.getDate() - 1)
   const schema = joi.calendardate().past()
-  expect(joi.attempt(expected, schema)).toBe(expected)
+  expect(joi.attempt(isodate(expected), schema)).toBe(isodate(expected))
 })
 
 describe('exact rule testsuit', () => {
