@@ -1,5 +1,9 @@
 import * as Joi from 'joi';
 
+export = CalendardateExtension;
+
+declare function CalendardateExtension(joi: Joi.Root): Joi.Extension;
+
 declare module 'joi' {
   type TimeUnit =  'day' | 'week' | 'month' | 'quarter' | 'year' | 'days' | 'weeks'| 'months' | 'quarters' | 'years' | 'd' | 'w' | 'M' | 'Q' | 'y';
 
