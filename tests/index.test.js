@@ -1,3 +1,4 @@
+const dayjs = require('dayjs')
 /** @type {import('joi')} */
 const joi = require('joi').extend(require('../index'))
 
@@ -347,4 +348,37 @@ test('exact and less/more are mutually exclusive options, throws ValidationError
     .calendardate()
     .gt(date, { exact: '100 days', more: '100 days' })
   expect(() => joi.attempt(expected, schema)).toThrow(joi.ValidationError)
+})
+
+describe('cast testsuit', () => {
+  const testdate = () => dayjs().subtract(854, 'day').format('YYYY-MM-DD')
+
+  test('cast only validated value, expect unchanged value', () => {
+    const date = '2021.02.28'
+    const schema = joi.calendardate().format('YYYY-MM-DD').cast('number')
+    expect(schema.validate(date)).toMatchObject({ value: date })
+  })
+
+  test.each([
+    ['days', 854],
+    ['weeks', 122],
+    ['months', 28],
+    ['quarters', 9],
+    ['years', 2]
+  ])("cast('%s'), expect %s", (cast, expected) => {
+    const schema = joi.calendardate().cast(cast)
+    expect(joi.attempt(testdate(), schema)).toBe(expected)
+  })
+
+  test("cast('date'), expect Date instance", () => {
+    const schema = joi.calendardate().cast('date')
+    expect(joi.attempt('2021-06-28', schema)).toEqual(new Date('2021-06-28'))
+  })
+
+  test("cast('number'), expect timestamp", () => {
+    const schema = joi.calendardate().cast('number')
+    expect(joi.attempt('2021-06-28', schema)).toEqual(
+      new Date('2021-06-28').getTime()
+    )
+  })
 })

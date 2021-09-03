@@ -76,6 +76,24 @@ const { value } = joi.calendardate().format(parser).validate('Jun 28, 2021')
 
 Possible validation errors: `calendardate.format`, `calendardate.parse`
 
+## cast(to)
+
+Casts validated value to the specified type.
+
+Parameters:
+
+- `to`: [`date` | `number` | `days` | `weeks` | `months` | `quarters` | `years`]
+
+| Cast Type | Return value                            |
+| --------- | --------------------------------------- |
+| date      | `Date` instance.                        |
+| number    | Number of milliseconds since the epoch. |
+| days      | Number of days since current date.      |
+| weeks     | Number of weeks since current date.     |
+| months    | Number of months since current date.    |
+| quarters  | Number of quarters since current date.  |
+| years     | Number of years since current date.     |
+
 ## trim([enabled])
 
 Requires input string to contain no leading or trailing whitespace. If the validation `convert` option is on (enabled by default), the string will be trimmed.
