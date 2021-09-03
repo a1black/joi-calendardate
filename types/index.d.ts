@@ -19,6 +19,10 @@ declare module 'joi' {
   }
 
   interface CalendardateSchema extends AnySchema {
+    /** Cast validated value to the specified type. */
+    cast(to: 'number'): this;
+    cast(to: 'date' | 'days' | 'weeks' | 'months' | 'quarters' | 'years'): this;
+
     /** Specifies that the value must be equal to `date`. */
     eq(date: 'today' | 'tommorow' | 'yesterday' | string | Date): this;
 

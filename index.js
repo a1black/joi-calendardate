@@ -27,6 +27,9 @@ const internals = {
       : { value, errors: error('calendardate.parse') }
   },
 
+  isCalendarDate: value =>
+    internals.isString(value) && dayjs(value, DEF_FORMAT, true).isValid(),
+
   isFunction: value => typeof value === 'function',
 
   isString: value => typeof value === 'string' || value instanceof String,
@@ -69,8 +72,7 @@ const internals = {
 
 const joiCalendardate = joi => {
   const args = {
-    date: value =>
-      internals.isString(value) && dayjs(value, DEF_FORMAT, true).isValid(),
+    date: internals.isCalendarDate,
 
     format: value => {
       const matches = value.match(
@@ -299,6 +301,50 @@ const joiCalendardate = joi => {
           }
 
           return this.$_setFlag('trim', enabled)
+        }
+      }
+    },
+    cast: {
+      date: {
+        from: internals.isCalendarDate,
+        to(value) {
+          return new Date(value)
+        }
+      },
+      days: {
+        from: internals.isCalendarDate,
+        to(value) {
+          return -1 * dayjs(value).diff(dayjs().format(DEF_FORMAT), 'day')
+        }
+      },
+      months: {
+        from: internals.isCalendarDate,
+        to(value) {
+          return -1 * dayjs(value).diff(dayjs().format(DEF_FORMAT), 'month')
+        }
+      },
+      number: {
+        from: internals.isCalendarDate,
+        to(value) {
+          return new Date(value).getTime()
+        }
+      },
+      quarters: {
+        from: internals.isCalendarDate,
+        to(value) {
+          return -1 * dayjs(value).diff(dayjs().format(DEF_FORMAT), 'quarter')
+        }
+      },
+      weeks: {
+        from: internals.isCalendarDate,
+        to(value) {
+          return -1 * dayjs(value).diff(dayjs().format(DEF_FORMAT), 'week')
+        }
+      },
+      years: {
+        from: internals.isCalendarDate,
+        to(value) {
+          return -1 * dayjs(value).diff(dayjs().format(DEF_FORMAT), 'year')
         }
       }
     }

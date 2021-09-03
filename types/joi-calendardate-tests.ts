@@ -1,4 +1,22 @@
 import * as Joi from 'joi';
 
+Joi.calendardate().cast('date');
+Joi.calendardate().cast('days');
+Joi.calendardate().cast('months');
+Joi.calendardate().cast('number');
+Joi.calendardate().cast('quarters');
+Joi.calendardate().cast('weeks');
+Joi.calendardate().cast('years');
+Joi.calendardate().eq('today');
+Joi.calendardate().eq(new Date());
 Joi.calendardate().format((value) => [0, 0, 0]);
+Joi.calendardate().format((value) => new Date());
 Joi.calendardate().format('YYYY-MM-DD');
+Joi.calendardate().future({exact: '1 month'});
+Joi.calendardate().ge('today');
+Joi.calendardate().gt('2021-06-28', {less: '2 month', more: [1, 'month']});
+Joi.calendardate().le(new Date());
+Joi.calendardate().lt('tommorow', {exact: [1, 'y'] });
+Joi.calendardate().past({more: '2 months', less: [10, 'days']});
+Joi.calendardate().trim();
+Joi.calendardate().trim(true);
