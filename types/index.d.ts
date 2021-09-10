@@ -21,10 +21,10 @@ declare module 'joi' {
   interface CalendardateSchema extends AnySchema {
     /** Cast validated value to the specified type. */
     cast(to: 'number'): this;
-    cast(to: 'date' | 'days' | 'weeks' | 'months' | 'quarters' | 'years'): this;
+    cast(to: 'date' | 'days' | 'format' | 'weeks' | 'months' | 'quarters' | 'years'): this;
 
     /** Specifies that the value must be equal to `date`. */
-    eq(date: 'today' | 'tommorow' | 'yesterday' | string | Date): this;
+    eq(date: 'today' | 'tomorrow' | 'yesterday' | string | Date | Reference): this;
 
     /** Specifies format of parsed date string or callback that returns year, month and day components. */
     format(format: string | ((value: string) => [number, number, number] | Date)): this;
@@ -33,16 +33,16 @@ declare module 'joi' {
     future(options?: ComparisonOptions): this;
 
     /** Specifies that value must be greater or equal to `date`. */
-    ge(date: 'today' | 'tommorow' | 'yesterday' | string | Date): this;
+    ge(date: 'today' | 'tomorrow' | 'yesterday' | string | Date | Reference): this;
 
     /** Specifies that the value must be greater than `date`. */
-    gt(date: 'today' | 'tommorow' | 'yesterday' | string | Date, options?: ComparisonOptions): this;
+    gt(date: 'today' | 'tomorrow' | 'yesterday' | string | Date | Reference, options?: ComparisonOptions): this;
 
     /** Specifies that value must be less or equal to `date`. */
-    le(date: 'today' | 'tommorow' | 'yesterday' | string | Date): this;
+    le(date: 'today' | 'tomorrow' | 'yesterday' | string | Date | Reference): this;
 
     /** Specifies that the value must be less than `date`. */
-    lt(date: 'today' | 'tommorow' | 'yesterday' | string | Date, options?: ComparisonOptions): this;
+    lt(date: 'today' | 'tomorrow' | 'yesterday' | string | Date | Reference, options?: ComparisonOptions): this;
 
     /** Specifies that value must be a date in the past. */
     past(options?: ComparisonOptions): this;

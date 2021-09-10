@@ -76,13 +76,15 @@ const joiCalendardate = joi => {
 
     format: value => {
       const matches = value.match(
-        /^(YYYY|YY|MM|M|DD|D)[-,./\s]*(YYYY|YY|MM|M|DD|D)[-,./\s]*(YYYY|YY|MM|M|DD|D)$/
+        /^(YYYY|YY|MM|M|DD|D)[-,./\s]*(YYYY|YY|MM|M|DD|D)([-,./\s]*(YYYY|YY|MM|M|DD|D))?$/
       )
-      const dateparts = matches ? matches.slice(1, 4) : []
+      const dateparts = matches
+        ? matches.filter((_, index) => [1, 2, 4].includes(index))
+        : []
       return (
         dateparts.length === 3 &&
         dateparts
-          .map(part => part[0][0])
+          .map(part => (part ? part[0] : part))
           .filter((el, index, arr) => arr.indexOf(el) === index).length === 3
       )
     },
@@ -315,6 +317,15 @@ const joiCalendardate = joi => {
         from: internals.isCalendarDate,
         to(value) {
           return -1 * dayjs(value).diff(dayjs().format(DEF_FORMAT), 'day')
+        }
+      },
+      format: {
+        from: internals.isCalendarDate,
+        to(value, { schema }) {
+          const format = schema.$_getFlag('format')
+          return internals.isString(format)
+            ? dayjs(value).format(format)
+            : value
         }
       },
       months: {

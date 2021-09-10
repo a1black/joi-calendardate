@@ -42,6 +42,8 @@ Parameters:
 ```js
 const { value } = joi.calendardate().format('DD.MM.YYYY').validate('28.06.2021')
 // => 2021-06-28
+const { value } = joi.calendardate().format('YYYYMM').validate('202106')
+// => 2021-06-01
 const { error } = joi.calendardate().format('D/M/YY').validate('28/06/21')
 // => Error: calendardate.format
 ```
@@ -82,17 +84,18 @@ Casts validated value to the specified type.
 
 Parameters:
 
-- `to`: [`date` | `number` | `days` | `weeks` | `months` | `quarters` | `years`]
+- `to`: [`date` | `format` | `number` | `days` | `weeks` | `months` | `quarters` | `years`]
 
-| Cast Type | Return value                            |
-| --------- | --------------------------------------- |
-| date      | `Date` instance.                        |
-| number    | Number of milliseconds since the epoch. |
-| days      | Number of days since current date.      |
-| weeks     | Number of weeks since current date.     |
-| months    | Number of months since current date.    |
-| quarters  | Number of quarters since current date.  |
-| years     | Number of years since current date.     |
+| Cast Type | Return value                                                                           |
+| --------- | -------------------------------------------------------------------------------------- |
+| date      | `Date` instance.                                                                       |
+| format    | If [format()](#format) argument is `string` then input string without trailing spaces. |
+| number    | Number of milliseconds since the epoch.                                                |
+| days      | Number of days since current date.                                                     |
+| weeks     | Number of weeks since current date.                                                    |
+| months    | Number of months since current date.                                                   |
+| quarters  | Number of quarters since current date.                                                 |
+| years     | Number of years since current date.                                                    |
 
 ## trim([enabled])
 
