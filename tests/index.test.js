@@ -11,7 +11,7 @@ const today = () => isodate(new Date())
 
 describe('format argument testsuit', () => {
   describe('invalid format argument, throws Error', () => {
-    test.each(['YY MM', 'YYY MM DD', 'YY MM MM', 'YY mm DD', 'YYYY MM DD HH'])(
+    test.each(['YYY MM DD', 'YY MM MM', 'YY mm DD', 'YYYY MM DD HH'])(
       '%s',
       format => {
         expect(() => joi.calendardate().format(format)).toThrow(
@@ -107,10 +107,25 @@ describe('format rule testsuit', () => {
     ['YYYY-MM-DD', '2021-06-28'],
     ['DD.MM.YYYY', '28.06.2021'],
     ['YYYY.MM.DD', '2021.06.28']
-  ])("'%s' parse '%s', expect ISO formatted date string", (format, value) => {
-    const expected = '2021-06-28'
-    const schema = joi.calendardate().format(format)
-    expect(joi.attempt(value, schema)).toEqual(expected)
+  ])(
+    "format('%s') parse '%s', expect ISO formatted date string",
+    (format, value) => {
+      const expected = '2021-06-28'
+      const schema = joi.calendardate().format(format)
+      expect(joi.attempt(value, schema)).toEqual(expected)
+    }
+  )
+
+  test("format('YYYYMM') parse '202106', expect ISO formatted date string", () => {
+    const schema = joi.calendardate().format('YYYYMM')
+    expect(joi.attempt('202106', schema)).toEqual('2021-06-01')
+  })
+
+  test("format('MMDD') parse '0601', expect ISO formatted date string", () => {
+    const schema = joi.calendardate().format('MMDD')
+    expect(joi.attempt('0601', schema)).toEqual(
+      `${new Date().getFullYear()}-06-01`
+    )
   })
 })
 
@@ -373,6 +388,11 @@ describe('cast testsuit', () => {
   test("cast('date'), expect Date instance", () => {
     const schema = joi.calendardate().cast('date')
     expect(joi.attempt('2021-06-28', schema)).toEqual(new Date('2021-06-28'))
+  })
+
+  test("cast('format'), expect string using format argument", () => {
+    const schema = joi.calendardate().format('YYYYMM').trim().cast('format')
+    expect(joi.attempt(' 202106 ', schema)).toEqual('202106')
   })
 
   test("cast('number'), expect timestamp", () => {
