@@ -2,15 +2,6 @@ const dayjs = require('dayjs')
 /** @type {import('joi')} */
 const joi = require('joi').extend(require('../index'))
 
-const isodate = date =>
-  `${date.getFullYear()}-` +
-  `${date.getMonth() + 1}-`.padStart(3, '0') +
-  `${date.getDate()}`.padStart(2, '0')
-
-// const isodate = dayjs(data).format('YYYY-MM-DD')
-
-const today = () => isodate(new Date())
-
 describe('calendardate.format(arg)', () => {
   test('arg is undefined, throws Error', () => {
     expect(() => joi.calendardate().format()).toThrow(
@@ -166,13 +157,28 @@ describe('calendardate.compare(arg, options', () => {
   })
 
   test.each([3600 * 24, '10 hours', 'ten years', ['ten', 'years']])(
-    'invalid duration options, throw Error',
+    'invalid comparison options, throw Error',
     value => {
       expect(() => joi.calendardate().gt(new Date(), { exact: value })).toThrow(
         /^options expected object that contain date comparison options/
       )
     }
   )
+
+  test('comparison option === undefined', () => {
+    expect(
+      joi
+        .calendardate()
+        .lt('2021-06-21', { exact: undefined, max: undefined, min: undefined })
+        .validate('2021-06-20')
+    ).toEqual({ value: expect.any(String) })
+  })
+
+  test('comparison option === empty array, throw Error', () => {
+    expect(() =>
+      joi.calendardate().lt('2021-06-21', { exact: [], max: [], min: [] })
+    ).toThrow(/^options expected object that contain date comparison options/)
+  })
 
   test.each([
     'd',
@@ -202,7 +208,7 @@ describe('calendardate.compare(arg, options', () => {
 
   test('arg is Date instance, expect to store its copy', () => {
     const date = new Date()
-    const value = isodate(date)
+    const value = dayjs(date).format('YYYY-MM-DD')
     const schema = joi.calendardate().eq(date)
     date.setFullYear(1990)
 

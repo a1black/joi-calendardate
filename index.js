@@ -33,11 +33,19 @@ const internals = {
     return value instanceof Date ? dayjs(value).format(DEF_FORMAT) : value
   },
 
-  normalizeCompareOptions: value =>
-    Object.entries(value || {}).map(([name, opt]) => {
-      opt = internals.isString(opt) ? opt.split(/\s+/) : opt
-      return [name, parseInt(opt[0]), opt[1]]
-    }),
+  normalizeCompareOptions: value => {
+    const options = []
+    for (const [name, opt] of Object.entries(value || {})) {
+      if (!opt) {
+        continue
+      } else {
+        const [limit, unit] = internals.isString(opt) ? opt.split(/\s+/) : opt
+        options.push([name, parseInt(limit), unit])
+      }
+    }
+
+    return options
+  },
 
   parse: (value, format, error) => {
     const date = dayjs(value, format, true)
