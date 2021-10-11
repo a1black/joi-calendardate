@@ -7,166 +7,173 @@ const isodate = date =>
   `${date.getMonth() + 1}-`.padStart(3, '0') +
   `${date.getDate()}`.padStart(2, '0')
 
+// const isodate = dayjs(data).format('YYYY-MM-DD')
+
 const today = () => isodate(new Date())
 
-describe('format argument testsuit', () => {
-  describe('invalid format argument, throws Error', () => {
-    test.each(['YYY MM DD', 'YY MM MM', 'YY mm DD', 'YYYY MM DD HH'])(
-      '%s',
-      format => {
-        expect(() => joi.calendardate().format(format)).toThrow(
-          'format invalid formatting string'
-        )
-      }
+describe('calendardate.format(arg)', () => {
+  test('arg is undefined, throws Error', () => {
+    expect(() => joi.calendardate().format()).toThrow(
+      'format expected non-empty string'
     )
   })
 
-  test('empty format string, throws Error', () => {
-    expect(() => joi.calendardate().format('')).toThrow(
-      'format invalid formatting string'
-    )
-  })
-})
+  test('arg is blank string, throws Error', () => {
+    const expected = 'format expected non-empty string'
 
-describe('base validation', () => {
-  test('empty string value, throws ValidationError', () => {
-    const schema = joi.calendardate()
-    expect(() => joi.attempt('', schema)).toThrow('is not allowed to be empty')
-  })
-
-  test('value of invalid type, throws ValidationError', () => {
-    const schema = joi.calendardate()
-    expect(() => joi.attempt(1624924800000, schema)).toThrow('must be a string')
-  })
-
-  test('convert input Date instance to string, expect ISO date string', () => {
-    const schema = joi
-      .calendardate()
-      .format('YYYY.MM.DD')
-      .prefs({ convert: true })
-    expect(joi.attempt(new Date(2021, 5, 28), schema)).toBe('2021-06-28')
-  })
-})
-
-describe('format rule testsuit', () => {
-  test('default format, throws ValidationError', () => {
-    expect(() => joi.attempt('21-06-28', joi.calendardate())).toThrow(
-      'must be a valid date'
-    )
-  })
-
-  test('default format, expect ISO date string', () => {
-    const input = '2021-06-28'
-    expect(joi.attempt(input, joi.calendardate())).toBe(input)
-  })
-
-  test('invalid format, throws ValidationError', () => {
-    const format = 'DD-MM-YYYY'
-    const schema = joi.calendardate().format(format)
-    expect(() => joi.attempt('2021-06-28', schema)).toThrow(
-      'must be a valid date'
-    )
-  })
-
-  describe('callback format returns wrong type, throws ValidationError', () => {
-    test.each([Date.now(), [2021, 5], '2021-06-28'])('%s', returnValue => {
-      const input = '2021-06-28'
-      const format = jest.fn().mockReturnValue(returnValue)
-      expect(() =>
-        joi.attempt(input, joi.calendardate().format(format))
-      ).toThrow('fails to be parsed by a callback')
-      expect(format).toHaveBeenCalledWith(input)
-    })
-  })
-
-  test('callback format returns array of date components, expect ISO date string', () => {
-    const expected = '2021-06-28'
-    const format = jest.fn().mockReturnValue([2021, 5, 28, 15, 34, 30])
-    const schema = joi.calendardate().format(format)
-    expect(joi.attempt(expected, schema)).toBe(expected)
-  })
-
-  test('callback format returns Date instance, expect ISO date string', () => {
-    const expected = '2021-06-28'
-    const format = jest.fn().mockReturnValue(new Date(2021, 5, 28))
-    const schema = joi.calendardate().format(format)
-    expect(joi.attempt(expected, schema)).toBe(expected)
+    expect(() => joi.calendardate().format('')).toThrow(expected)
+    expect(() => joi.calendardate().format('  ')).toThrow(expected)
   })
 
   test.each([
-    ['MM/DD/YYYY', '06/28/2021'],
-    ['DD/MM/YYYY', '28/06/2021'],
-    ['YYYY/MM/DD', '2021/06/28'],
-    ['M/D/YY', '6/28/21'],
-    ['D/M/YY', '28/6/21'],
-    ['YY/M/D', '21/6/28'],
-    ['MMDDYYYY', '06282021'],
-    ['DDMMYYYY', '28062021'],
-    ['YYYYMMDD', '20210628'],
-    ['DD-MM-YYYY', '28-06-2021'],
-    ['YYYY-MM-DD', '2021-06-28'],
-    ['DD.MM.YYYY', '28.06.2021'],
-    ['YYYY.MM.DD', '2021.06.28']
-  ])(
-    "format('%s') parse '%s', expect ISO formatted date string",
-    (format, value) => {
-      const expected = '2021-06-28'
-      const schema = joi.calendardate().format(format)
-      expect(joi.attempt(value, schema)).toEqual(expected)
+    'YYY MM DD',
+    'YY MM MM',
+    'YY mm DD',
+    'YYYY MM DD HH',
+    'YYYY\\MM\\DD'
+  ])('arg not valid formatting string: %s, throws Error', arg => {
+    const expected = `Invalid formatting string: '${arg}'`
+
+    expect(() => joi.calendardate().format(arg)).toThrow(expected)
+  })
+
+  test.each([
+    'YYYY-MM-DD',
+    'DD.MM.YYYY',
+    'MM/YY, D',
+    'YY/M, D',
+    'MMDDYY',
+    'YYYYMMDD'
+  ])('validate correctly formated date, expect success', arg => {
+    const date = dayjs().format(arg)
+    const expected = dayjs().format('YYYY-MM-DD')
+    expect(joi.calendardate().format(arg).validate(date)).toEqual({
+      value: expected
+    })
+  })
+
+  test.each(['YYYY MM', 'MM D', 'DD M', 'YY DD'])(
+    'validate partially formatted date, expect success',
+    arg => {
+      const date = dayjs().format(arg)
+      const expected = dayjs(date, arg).format('YYYY-MM-DD')
+      expect(joi.calendardate().format(arg).validate(date)).toEqual({
+        value: expected
+      })
     }
   )
 
-  test("format('YYYYMM') parse '202106', expect ISO formatted date string", () => {
-    const schema = joi.calendardate().format('YYYYMM')
-    expect(joi.attempt('202106', schema)).toEqual('2021-06-01')
+  test('input is Date instance, expect format flag reset to default', () => {
+    expect(
+      joi.calendardate().format('MM DD').validate(new Date('1990-10-10'))
+    ).toEqual({
+      value: '1990-10-10'
+    })
   })
 
-  test("format('MMDD') parse '0601', expect ISO formatted date string", () => {
-    const schema = joi.calendardate().format('MMDD')
-    expect(joi.attempt('0601', schema)).toEqual(
-      `${new Date().getFullYear()}-06-01`
-    )
-  })
-})
-
-describe('trim rule testsuit', () => {
-  test('convert option is on, expect trimmed string', () => {
-    const expected = '2021-06-28'
-    const schema = joi.calendardate().trim()
-    expect(joi.attempt(` ${expected} `, schema, { convert: true })).toBe(
-      expected
-    )
-  })
-
-  test('convert options is off, throws ValidationError', () => {
-    const schema = joi.calendardate().trim()
-    expect(() =>
-      joi.attempt(' 2021-06-28 ', schema, { convert: false })
-    ).toThrow('must not have leading or trailing whitespace')
+  test('validate incorrectly formated date, expect `calendardate.format` error', () => {
+    const format = 'DD.MM.YYYY'
+    const value = '2021-06-21'
+    expect(joi.calendardate().format(format).validate(value)).toMatchObject({
+      error: {
+        details: expect.arrayContaining([
+          expect.objectContaining({
+            type: 'calendardate.format',
+            message: `"value" must be a valid date in "${format}" format`
+          })
+        ])
+      }
+    })
   })
 })
 
-describe('compare rule date argument', () => {
-  test.each([1624924800000, [2021, 5, 28]])('%s, throws Error', value => {
-    expect(() => joi.calendardate().eq(value)).toThrow(
-      'date expected Date instance or valid ISO formatted calendar date'
+describe('calendardate.trim(arg)', () => {
+  test('arg not boolean, throws Error', () => {
+    expect(() => joi.calendardate().trim(1)).toThrow(
+      `enabled expected boolean, got '1'`
     )
   })
 
-  test.each(['2021-06-28', new Date()])('%s, expect nothing', value => {
-    expect(() => joi.calendardate().eq(value)).not.toThrow()
+  test('coerce there trim=true, expect trimmed output', () => {
+    expect(
+      joi.calendardate().trim().validate(' 2021-06-21 ', { convert: true })
+    ).toEqual({ value: '2021-06-21' })
   })
 
-  test('change of Date instance does not effect validation rule, expect value eq date', () => {
-    const expected = today()
-    const date = new Date()
-    const schema = joi.calendardate().eq(date)
-    date.setFullYear(date.getFullYear() + 1)
-    expect(joi.attempt(expected, schema)).toBe(expected)
+  test('validate there trim=true, expect `calendardate.trim` error', () => {
+    expect(
+      joi.calendardate().trim().validate(' 2021-06-21', { convert: false })
+    ).toMatchObject({
+      error: {
+        details: expect.arrayContaining([
+          expect.objectContaining({
+            type: 'calendardate.trim',
+            message: '"value" must not have leading or trailing whitespace'
+          })
+        ])
+      }
+    })
   })
 })
 
-describe('compare rule options argument testsuit', () => {
+describe('calendardate.validate(input)', () => {
+  test('input not string, expect `calendardate.base` error', () => {
+    expect(
+      joi.calendardate().validate(new Date(), { convert: false })
+    ).toMatchObject({
+      error: {
+        details: expect.arrayContaining([
+          expect.objectContaining({
+            type: 'calendardate.base',
+            message: '"value" must be a string'
+          })
+        ])
+      }
+    })
+  })
+
+  test('input is empty string, expect `calendardate.empty` error', () => {
+    expect(joi.calendardate().validate('')).toMatchObject({
+      error: {
+        details: expect.arrayContaining([
+          expect.objectContaining({
+            type: 'calendardate.empty',
+            message: '"value" is not allowed to be empty'
+          })
+        ])
+      }
+    })
+  })
+})
+
+describe('calendardate.compare(arg, options', () => {
+  test('arg not string or Date, throw Error', () => {
+    expect(() => joi.calendardate().eq(Date.now())).toThrow(
+      'expected Date instance or valid ISO formatted calendar date'
+    )
+  })
+
+  test('arg not ISO formatted calendar date, throw Error', () => {
+    expect(() => joi.calendardate().eq(new Date().toUTCString())).toThrow(
+      /^date expected Date instance or valid ISO formatted calendar date/
+    )
+  })
+
+  test('unknown option keys, throws Error', () => {
+    expect(() => joi.calendardate().gt(new Date(), { value: '1 y' })).toThrow(
+      /^options expected object that contain date comparison options/
+    )
+  })
+
+  test.each([3600 * 24, '10 hours', 'ten years', ['ten', 'years']])(
+    'invalid duration options, throw Error',
+    value => {
+      expect(() => joi.calendardate().gt(new Date(), { exact: value })).toThrow(
+        /^options expected object that contain date comparison options/
+      )
+    }
+  )
+
   test.each([
     'd',
     'day',
@@ -183,196 +190,198 @@ describe('compare rule options argument testsuit', () => {
     'y',
     'year',
     'years'
-  ])('unit %s, expect nothing', value => {
+  ])('option unit value: %s', value => {
     expect(() =>
-      joi.calendardate().future({
-        exact: `1 ${value}`,
-        less: `10 ${value}`,
-        more: [20, value]
+      joi.calendardate().gt(new Date(), {
+        exact: `10 ${value}`,
+        max: ['100', value],
+        min: [20, value]
       })
     ).not.toThrow()
   })
 
-  test('empty object as options argument, expect nothing', () => {
-    expect(() => joi.calendardate().future()).not.toThrow()
-    expect(() => joi.calendardate().future({})).not.toThrow()
-  })
-})
+  test('arg is Date instance, expect to store its copy', () => {
+    const date = new Date()
+    const value = isodate(date)
+    const schema = joi.calendardate().eq(date)
+    date.setFullYear(1990)
 
-describe('eq rule testsuit', () => {
-  describe('value is equal to date, expect validated date', () => {
-    test.each([
-      ['2021-06-28', new Date(2021, 5, 28)],
-      ['2021-06-28', '2021-06-28'],
-      [today(), 'today']
-    ])('%s === %s', (expected, date) => {
-      const schema = joi.calendardate().eq(date)
-      expect(joi.attempt(expected, schema)).toBe(expected)
+    expect(schema.validate(value)).toEqual({ value })
+  })
+
+  test('arg is `today` date string', () => {
+    const value = dayjs().format('YYYY-MM-DD')
+    expect(joi.calendardate().eq('today').validate(value)).toEqual({ value })
+  })
+
+  test('arg is `yesterday` date string', () => {
+    const value = dayjs().subtract(1, 'd').format('YYYY-MM-DD')
+    expect(joi.calendardate().eq('yesterday').validate(value)).toEqual({
+      value
     })
   })
 
-  describe('value is not equal to date, throws ValidationError', () => {
-    test.each([
-      ['2021-06-28', new Date(2021, 5, 27)],
-      ['2021-06-28', '2021-06-29'],
-      [today(), 'tomorrow'],
-      [today(), 'yesterday']
-    ])('%s !== %s', (expected, date) => {
-      const schema = joi.calendardate().eq(date)
-      expect(() => joi.attempt(expected, schema)).toThrow('must be equal to')
-    })
-  })
-})
-
-describe('gt rule testsuit', () => {
-  describe('value is greater than date, expect ISO date string', () => {
-    test.each([
-      ['2021-06-28', new Date(2021, 5, 27)],
-      ['2021-06-28', '2021-06-27'],
-      [today(), 'yesterday']
-    ])('%s > %s', (expected, date) => {
-      const schema = joi.calendardate().gt(date)
-      expect(joi.attempt(expected, schema)).toBe(expected)
+  test('arg is `tomorrow` date string', () => {
+    const value = dayjs().add(1, 'd').format('YYYY-MM-DD')
+    expect(joi.calendardate().eq('tomorrow').validate(value)).toEqual({
+      value
     })
   })
 
-  describe('value is less than date, throws ValidationError', () => {
-    test.each([
-      ['2021-06-28', new Date(2021, 5, 29)],
-      ['2021-06-28', '2021-06-29'],
-      [today(), 'tomorrow'],
-      [today(), 'today']
-    ])('%s <= %s', (expected, date) => {
-      const schema = joi.calendardate().gt(date)
-      expect(() => joi.attempt(expected, schema)).toThrow(
-        'must be greater than'
-      )
+  test('eq base comparison', () => {
+    const [older, compareTo, newer] = ['2021-06-22', '2021-06-21', '2021-06-20']
+    const schema = joi.calendardate().eq(compareTo)
+    expect(schema.validate(compareTo)).toEqual({ value: compareTo })
+    expect(schema.validate(newer).error).toMatchObject({
+      details: expect.arrayContaining([
+        expect.objectContaining({
+          message: `"value" must be equal to "${compareTo}"`,
+          type: 'calendardate.eq'
+        })
+      ])
     })
-  })
-})
-
-describe('lt rule testsuit', () => {
-  describe('value is less than date, expect ISO date string', () => {
-    test.each([
-      ['2021-06-28', new Date(2021, 5, 29)],
-      ['2021-06-28', '2021-06-29'],
-      [today(), 'tomorrow']
-    ])('%s < %s', (expected, date) => {
-      const schema = joi.calendardate().lt(date)
-      expect(joi.attempt(expected, schema)).toBe(expected)
+    expect(schema.validate(older).error).toMatchObject({
+      details: expect.arrayContaining([
+        expect.objectContaining({
+          message: `"value" must be equal to "${compareTo}"`,
+          type: 'calendardate.eq'
+        })
+      ])
     })
   })
 
-  describe('value is greater than date, throws ValidationError', () => {
-    test.each([
-      ['2021-06-28', new Date(2021, 5, 27)],
-      ['2021-06-28', '2021-06-27'],
-      [today(), 'today'],
-      [today(), 'yesterday']
-    ])('%s >= %s', (expected, date) => {
-      const schema = joi.calendardate().lt(date)
-      expect(() => joi.attempt(expected, schema)).toThrow('must be less than')
+  test('gt base comparison', () => {
+    const [value, compareTo] = ['2021-06-22', '2021-06-21']
+    const schema = joi.calendardate().gt(compareTo)
+    expect(schema.validate(value)).toEqual({ value })
+    expect(schema.validate(compareTo).error).toMatchObject({
+      details: expect.arrayContaining([
+        expect.objectContaining({
+          message: `"value" must be greater than "${compareTo}"`,
+          type: 'calendardate.gt'
+        })
+      ])
     })
   })
-})
 
-test('value is in the future, expect ISO date string', () => {
-  const expected = new Date()
-  expected.setDate(expected.getDate() + 1)
-  const schema = joi.calendardate().future()
-  expect(joi.attempt(isodate(expected), schema)).toBe(isodate(expected))
-})
-
-test('value is in the past, expect ISO date string', () => {
-  const expected = new Date()
-  expected.setDate(expected.getDate() - 1)
-  const schema = joi.calendardate().past()
-  expect(joi.attempt(isodate(expected), schema)).toBe(isodate(expected))
-})
-
-describe('exact rule testsuit', () => {
-  test('value differ from date by not exact duration, throws ValidationError', () => {
-    const expected = '2021-06-28'
-    const date = '2021-10-01'
-    const schema = joi.calendardate().lt(date, { exact: '2 months' })
-    expect(() => joi.attempt(expected, schema)).toThrow('by exactly')
+  test('ge base comparison', () => {
+    const [older, compareTo, newer] = ['2021-06-22', '2021-06-21', '2021-06-20']
+    const schema = joi.calendardate().ge(compareTo)
+    expect(schema.validate(older)).toEqual({ value: older })
+    expect(schema.validate(compareTo)).toEqual({ value: compareTo })
+    expect(schema.validate(newer).error).toMatchObject({
+      details: expect.arrayContaining([
+        expect.objectContaining({
+          message: `"value" must be greater or equal to "${compareTo}"`,
+          type: 'calendardate.ge'
+        })
+      ])
+    })
   })
 
-  test('value is differ by exact duration, expect ISO date string', () => {
-    const expected = '2021-06-28'
-    const date = '2021-09-01'
-    const schema = joi.calendardate().lt(date, { exact: '2 months' })
-    expect(joi.attempt(expected, schema)).toBe(expected)
+  test('lt base comparison', () => {
+    const [value, compareTo] = ['2021-06-21', '2021-06-22']
+    const schema = joi.calendardate().lt(compareTo)
+    expect(schema.validate(value)).toEqual({ value })
+    expect(schema.validate(compareTo).error).toMatchObject({
+      details: expect.arrayContaining([
+        expect.objectContaining({
+          message: `"value" must be less than "${compareTo}"`,
+          type: 'calendardate.lt'
+        })
+      ])
+    })
+  })
+
+  test('le base comparison', () => {
+    const [older, compareTo, newer] = ['2021-06-22', '2021-06-21', '2021-06-20']
+    const schema = joi.calendardate().le(compareTo)
+    expect(schema.validate(newer)).toEqual({ value: newer })
+    expect(schema.validate(compareTo)).toEqual({ value: compareTo })
+    expect(schema.validate(older).error).toMatchObject({
+      details: expect.arrayContaining([
+        expect.objectContaining({
+          message: `"value" must be less or equal to "${compareTo}"`,
+          type: 'calendardate.le'
+        })
+      ])
+    })
+  })
+
+  test('exact comparison option', () => {
+    const [compareTo, less, exact, more] = [
+      '2021-09-01',
+      '2021-07-02' /* One day short */,
+      '2021-06-20' /* Round down exact diff */,
+      '2021-06-01' /* One month greater */
+    ]
+    const error = {
+      message: `"value" must differ from "${compareTo}" by exactly 2 months`,
+      type: 'calendardate.exact'
+    }
+    const schema = joi.calendardate().lt(compareTo, { exact: '2 months' })
+
+    expect(schema.validate(exact)).toEqual({ value: exact })
+    expect(schema.validate(less).error).toMatchObject({
+      details: expect.arrayContaining([expect.objectContaining(error)])
+    })
+    expect(schema.validate(more).error).toMatchObject({
+      details: expect.arrayContaining([expect.objectContaining(error)])
+    })
+  })
+
+  test('max comparison option', () => {
+    const [compareTo, less, exact, more] = [
+      '2017-06-28',
+      '2021-06-26' /* One day short */,
+      '2021-10-01' /* Round down exact diff */,
+      '2022-06-28' /* One year greater */
+    ]
+    const error = {
+      message: `"value" must differ from "${compareTo}" by less or equal to 4 years`,
+      type: 'calendardate.max'
+    }
+    const schema = joi.calendardate().gt(compareTo, { max: '4 years' })
+
+    expect(schema.validate(less)).toEqual({ value: less })
+    expect(schema.validate(exact)).toEqual({ value: exact })
+    expect(schema.validate(more).error).toMatchObject({
+      details: expect.arrayContaining([expect.objectContaining(error)])
+    })
+  })
+
+  test('min comparison option', () => {
+    const [compareTo, less, exact, more] = [
+      '2021-04-01',
+      '2021-02-01' /* One day short */,
+      '2021-01-31' /* Exact diff */,
+      '2021-01-30' /* One ode day greater */
+    ]
+    const error = {
+      message: `"value" must differ from "${compareTo}" by more or equal to 60 days`,
+      type: 'calendardate.min'
+    }
+    const schema = joi.calendardate().lt(compareTo, { min: '60 days' })
+
+    expect(schema.validate(more)).toEqual({ value: more })
+    expect(schema.validate(exact)).toEqual({ value: exact })
+    expect(schema.validate(less).error).toMatchObject({
+      details: expect.arrayContaining([expect.objectContaining(error)])
+    })
+  })
+
+  test('min = 0 comparison option', () => {
+    const value = '2021-06-21'
+    const options = { min: '0 days' }
+    const schema = joi.calendardate()
+
+    expect(schema.ge(value, options).validate(value)).toEqual({ value })
+    expect(schema.le(value, options).validate(value)).toEqual({ value })
   })
 })
 
-describe('less rule testsuit', () => {
-  test('value differ from date by more than specified duration, throws ValidationError', () => {
-    const expected = '2021-06-28'
-    const date = '2017-06-28'
-    const schema = joi.calendardate().gt(date, { less: '4 years' })
-    expect(() => joi.attempt(expected, schema)).toThrow('by less than')
-  })
-
-  test('value is differ from date by less than specified duration, expect ISO date string', () => {
-    const expected = '2021-06-28'
-    const date = '2021-07-17'
-    const schema = joi.calendardate().lt(date, { less: '20 days' })
-    expect(joi.attempt(expected, schema)).toBe(expected)
-  })
-})
-
-describe('more rule testsuit', () => {
-  test('value differ from date by less than specified duration, throws ValidationError', () => {
-    const expected = '2021-06-28'
-    const date = '2021-05-01'
-    const schema = joi.calendardate().gt(date, { more: '60 days' })
-    expect(() => joi.attempt(expected, schema)).toThrow('by more than')
-  })
-
-  test('value is differ from date by more than specified duration, expect ISO date string', () => {
-    const expected = '2021-06-28'
-    const date = '2019-01-01'
-    const schema = joi.calendardate().gt(date, { more: '500 days' })
-    expect(joi.attempt(expected, schema)).toBe(expected)
-  })
-})
-
-test('value fall in the range set by less and more options, expect ISO date string', () => {
-  const expected = '2021-06-28'
-  const date = '2021-02-28'
-  const schema = joi
-    .calendardate()
-    .gt(date, { more: '100 days', less: '200 days' })
-  expect(joi.attempt(expected, schema)).toBe(expected)
-})
-
-test('value does not fall in the range set by less and more options, throws ValidationError', () => {
-  const expected = '2021-06-28'
-  const date = '2021-02-28'
-  const schema = joi
-    .calendardate()
-    .gt(date, { more: '100 days', less: '100 days' })
-  expect(() => joi.attempt(expected, schema)).toThrow(joi.ValidationError)
-})
-
-test('exact and less/more are mutually exclusive options, throws ValidationError', () => {
-  const expected = '2021-06-28'
-  const date = '2021-02-28'
-  const schema = joi
-    .calendardate()
-    .gt(date, { exact: '100 days', more: '100 days' })
-  expect(() => joi.attempt(expected, schema)).toThrow(joi.ValidationError)
-})
-
-describe('cast testsuit', () => {
+describe('calendardate.cast(arg)', () => {
   const testdate = () => dayjs().subtract(854, 'day').format('YYYY-MM-DD')
-
-  test('cast only validated value, expect unchanged value', () => {
-    const date = '2021.02.28'
-    const schema = joi.calendardate().format('YYYY-MM-DD').cast('number')
-    expect(schema.validate(date)).toMatchObject({ value: date })
-  })
 
   test.each([
     ['days', 854],
@@ -380,25 +389,19 @@ describe('cast testsuit', () => {
     ['months', 28],
     ['quarters', 9],
     ['years', 2]
-  ])("cast('%s'), expect %s", (cast, expected) => {
-    const schema = joi.calendardate().cast(cast)
-    expect(joi.attempt(testdate(), schema)).toBe(expected)
+  ])("arg is '%s', expect %s", (arg, value) => {
+    expect(joi.calendardate().cast(arg).validate(testdate())).toEqual({ value })
   })
 
-  test("cast('date'), expect Date instance", () => {
-    const schema = joi.calendardate().cast('date')
-    expect(joi.attempt('2021-06-28', schema)).toEqual(new Date('2021-06-28'))
+  test("arg is 'date', expect Date instance", () => {
+    expect(joi.calendardate().cast('date').validate('2021-06-28')).toEqual({
+      value: new Date('2021-06-28')
+    })
   })
 
-  test("cast('format'), expect string using format argument", () => {
-    const schema = joi.calendardate().format('YYYYMM').trim().cast('format')
-    expect(joi.attempt(' 202106 ', schema)).toEqual('202106')
-  })
-
-  test("cast('number'), expect timestamp", () => {
-    const schema = joi.calendardate().cast('number')
-    expect(joi.attempt('2021-06-28', schema)).toEqual(
-      new Date('2021-06-28').getTime()
-    )
+  test("arg is 'number', expect timestamp", () => {
+    expect(joi.calendardate().cast('number').validate('2021-06-28')).toEqual({
+      value: new Date('2021-06-28').getTime()
+    })
   })
 })

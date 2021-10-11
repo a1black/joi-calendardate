@@ -14,11 +14,11 @@ npm install --save a1black/joi-calendardate
 
 ```js
 const calendardate = require('joi-calendardate')
-const joi = require('joi').extend(calendardate)
+const Joi = require('joi').extend(calendardate)
 
-const userSchema = joi.object({
-  name: joi.string().required(),
-  birthday: joi.calendardate().past({ more: '17 year' }).required()
+const userSchema = Joi.object({
+  name: Joi.string().required(),
+  birthday: Joi.calendardate().lt('today', { min: '18 year' }).required()
 })
 // => Verify that user provided name and is 18 years or older.
 ```
@@ -40,11 +40,11 @@ Parameters:
 - `format`: {`string` | `Function`} - format for parsing date string or custom parser function.
 
 ```js
-const { value } = joi.calendardate().format('DD.MM.YYYY').validate('28.06.2021')
+const { value } = Joi.calendardate().format('DD.MM.YYYY').validate('28.06.2021')
 // => 2021-06-28
-const { value } = joi.calendardate().format('YYYYMM').validate('202106')
+const { value } = Joi.calendardate().format('YYYYMM').validate('202106')
 // => 2021-06-01
-const { error } = joi.calendardate().format('D/M/YY').validate('28/06/21')
+const { error } = Joi.calendardate().format('D/M/YY').validate('28/06/21')
 // => Error: calendardate.format
 ```
 
@@ -61,41 +61,23 @@ const { error } = joi.calendardate().format('D/M/YY').validate('28/06/21')
 
 Allowed delimiter characters are `,` (comma), `.` (dot), `-` (minus sign), `/` (forward slash) and space.
 
-### Custom date parser
-
-If input date can't be described using available tokens and delimiter characters, format should be set to a function that receives date string as argument and returns an array `[year, month, day]` (see [Date constructor][date]) or `Date` instance.
-
-[date]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/Date#parameters 'Date() constructor. Individual date and time component values'
-
-```js
-const parser = value => {
-  const date = new Date(value)
-  return [date.getFullYear(), date.getMonth(), date.getDate()]
-}
-const { value } = joi.calendardate().format(parser).validate('Jun 28, 2021')
-// => 2021-06-28
-```
-
-Possible validation errors: `calendardate.format`, `calendardate.parse`
-
 ## cast(to)
 
 Casts validated value to the specified type.
 
 Parameters:
 
-- `to`: [`date` | `format` | `number` | `days` | `weeks` | `months` | `quarters` | `years`]
+- `to`: [`date` | `number` | `days` | `weeks` | `months` | `quarters` | `years`]
 
-| Cast Type | Return value                                                                           |
-| --------- | -------------------------------------------------------------------------------------- |
-| date      | `Date` instance.                                                                       |
-| format    | If [format()](#format) argument is `string` then input string without trailing spaces. |
-| number    | Number of milliseconds since the epoch.                                                |
-| days      | Number of days since current date.                                                     |
-| weeks     | Number of weeks since current date.                                                    |
-| months    | Number of months since current date.                                                   |
-| quarters  | Number of quarters since current date.                                                 |
-| years     | Number of years since current date.                                                    |
+| Cast Type | Return value                            |
+| --------- | --------------------------------------- |
+| date      | `Date` instance.                        |
+| number    | Number of milliseconds since the epoch. |
+| days      | Number of days since current date.      |
+| weeks     | Number of weeks since current date.     |
+| months    | Number of months since current date.    |
+| quarters  | Number of quarters since current date.  |
+| years     | Number of years since current date.     |
 
 ## trim([enabled])
 
@@ -106,7 +88,7 @@ Parameters:
 - `enabled`: {`boolean`} - optional parameter defaulting to `true`.
 
 ```js
-const { value } = joi.calendardate().trim().validate(' 2021-06-28 ')
+const { value } = Joi.calendardate().trim().validate(' 2021-06-28 ')
 // => 2021-06-28
 ```
 
@@ -122,9 +104,9 @@ Parameters:
 
 ```js
 const schema = joi.object({
-  date1: joi.calendardate().eq('today'),
-  date2: joi.calendardate().eq('2021-06-28'),
-  date3: joi.calendardate().eq(new Date())
+  date1: Joi.calendardate().eq('today'),
+  date2: Joi.calendardate().eq('2021-06-28'),
+  date3: Joi.calendardate().eq(new Date())
 })
 ```
 
@@ -137,29 +119,31 @@ Specifies that the value must be greater than `date`.
 Parameters:
 
 - `date`: [CalendarDateType](#calendardatetype)
-- `option`: [ComparisonOptionsType](#comparisonoptionstype)
+- `options`: [ComparisonOptionsType](#comparisonoptionstype)
 
 ```js
-const schema = joi
-  .calendardate()
-  .gt('2021-06-28', { less: '1 year', more: '6 months' })
+const schema = Joi.calendardate().gt('2021-06-28', {
+  max: '1 year',
+  min: '6 months'
+})
 ```
 
-Possible validation errors: `calendardate.gt`, `calendardate.exact`, `calendardate.less`, `calendardate.more`
+Possible validation errors: `calendardate.gt`, `calendardate.exact`, `calendardate.max`, `calendardate.min`
 
-## ge(date)
+## ge(date, [options])
 
 Specifies that the value must be greater or equal to `date`.
 
 Parameters:
 
 - `date`: [CalendarDateType](#calendardatetype)
+- `options`: [ComparisonOptionsType](#comparisonoptionstype)
 
 ```js
 const schema = joi.object({
-  date1: joi.calendardate().ge('tomorrow'),
-  date2: joi.calendardate().ge('2021-06-28'),
-  date3: joi.calendardate().ge(new Date())
+  date1: Joi.calendardate().ge('tomorrow'),
+  date2: Joi.calendardate().ge('2021-06-28'),
+  date3: Joi.calendardate().ge(new Date())
 })
 ```
 
@@ -167,94 +151,90 @@ Possible validation errors: `calendardate.ge`
 
 ## lt(date, [options])
 
-Specifies that the value must be greater than `date`.
+Specifies that the value must be less than `date`.
 
 Parameters:
 
 - `date`: [CalendarDateType](#calendardatetype)
-- `option`: [ComparisonOptionsType](#comparisonoptionstype)
+- `options`: [ComparisonOptionsType](#comparisonoptionstype)
 
 ```js
-const schema = joi
-  .calendardate()
-  .lt('2021-06-28', { less: '1 year', more: '6 months' })
+const schema = Joi.calendardate().lt('2021-06-28', {
+  max: '1 year',
+  min: '6 months'
+})
 ```
 
-Possible validation errors: `calendardate.lt`, `calendardate.exact`, `calendardate.less`, `calendardate.more`
+Possible validation errors: `calendardate.lt`, `calendardate.exact`, `calendardate.max`, `calendardate.min`
 
-## le(date)
+## le(date, [options])
 
 Specifies that the value must be less or equal to `date`.
 
 Parameters:
 
 - `date`: [CalendarDateType](#calendardatetype)
+- `options`: [ComparisonOptionsType](#comparisonoptionstype)
 
 ```js
 const schema = joi.object({
-  date1: joi.calendardate().le('yesterday'),
-  date2: joi.calendardate().le('2021-06-28'),
-  date3: joi.calendardate().le(new Date())
+  date1: Joi.calendardate().le('yesterday'),
+  date2: Joi.calendardate().le('2021-06-28'),
+  date3: Joi.calendardate().le(new Date())
 })
 ```
 
 Possible validation errors: `calendardate.le`
 
-## future([options])
-
-Alias for `gt('today', options)` rule.
-
-Parameters:
-
-- `option`: [ComparisonOptionsType](#comparisonoptionstype)
-
-```js
-const schema = joi.calendardate().future({ less: '1 year' })
-```
-
-Possible validation errors: `calendardate.future`
-
-## past([options])
-
-Alias for `lt('today', options)` rule.
-
-Parameters:
-
-- `option`: [ComparisonOptionsType](#comparisonoptionstype)
-
-```js
-const schema = joi.calendardate().past({ more: '17 year' })
-```
-
-Possible validation errors: `calendardate.past`
-
 ## CalendarDateType
-
-Date to compare with, can be a string in simplified extended ISO format (date component only) or `Date` instance.
 
 **Type:**
 
-- `today` | `tomorrow` | `yesterday` | `string` | `Date`
+- 'today' | 'tomorrow' | 'yesterday' | `string` | `Date`
+
+Date to compare with, can be a string in simplified extended ISO format (date component only) or `Date` instance.
+
+```js
+// examples
+let value = '7/30'
+// => 'M/D'
+let value = '7/9/21'
+// => 'M/D/YY
+let value = '2021-06-21'
+// => 'YYYY-MM-DD'
+```
 
 ## ComparisonOptionsType
 
-Options for validating distance between two dates.
+Options for date comparison provide limits on a difference between two dates in full time units.
 
 **Type:**
 
 - `Object`
 
+**Template variables:**
+
+- \#limit - Number of time units
+- \#unit - Unit as provided (e.g. `{ max: '1 years' }` results in `unit = 'years'`)
+
 **Properties:**
 
-| Name  | Type                           | Description                                       |
-| ----- | ------------------------------ | ------------------------------------------------- |
-| exact | `[number, string]` \| `string` | Distance must be equal to specified duration.     |
-| less  | `[number, string]` \| `string` | Distance must be less than specified duration.    |
-| more  | `[number, string]` \| `string` | Distance must be greater than specified duration. |
+| Name  | Type                           | Description                                              |
+| ----- | ------------------------------ | -------------------------------------------------------- |
+| exact | `[number, string]` \| `string` | Distance must be equal to specified duration.            |
+| max   | `[number, string]` \| `string` | Distance must be less or equal to specified duration.    |
+| min   | `[number, string]` \| `string` | Distance must be greater or equal to specified duration. |
 
-Duration can be described with tuple or space-delimited string that contains natural number and time unit.
+Unknown keys are not allowed in the option object and raise `Error`.
 
-### List of all available units
+```js
+const { value } = Joi.calendardate()
+  .gt('2021-01-01', { max: '1 year' })
+  .validate('2022-02-01')
+// => valid, there is only one full year difference.
+```
+
+### Time units
 
 Units are case-sensitive and support plural and short forms.
 
