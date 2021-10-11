@@ -12,25 +12,12 @@ const comparisonOp = {
 }
 
 const internals = {
-  customParse: (value, parser, error) => {
-    let date
-    const parsed = parser(value)
-    if (parsed instanceof Date) {
-      date = dayjs(parsed)
-    } else {
-      const [y, m, d] = Array.isArray(parsed) ? parsed : []
-      date = dayjs(new Date(y, m, d))
-    }
-
-    return date.isValid()
-      ? { value: date.format(DEF_FORMAT) }
-      : { value, errors: error('calendardate.parse') }
+  diffToNow: (value, unit) => {
+    return Math.abs(dayjs(value).diff(dayjs().format(DEF_FORMAT), unit))
   },
 
   isCalendarDate: value =>
     internals.isString(value) && dayjs(value, DEF_FORMAT, true).isValid(),
-
-  isFunction: value => typeof value === 'function',
 
   isString: value => typeof value === 'string' || value instanceof String,
 
@@ -46,27 +33,17 @@ const internals = {
     return value instanceof Date ? dayjs(value).format(DEF_FORMAT) : value
   },
 
-  normalizeCompareOptions: value => {
-    const knownOptions = ['exact', 'less', 'more']
-    const normalized = {}
-    for (const [name, option] of Object.entries(value ?? {})) {
-      if (knownOptions.includes(name) && option) {
-        normalized[name] = internals.isString(option)
-          ? option
-              .split(' ')
-              .map((value, index) => (!index ? parseInt(value) : value))
-          : option
-      }
-    }
-
-    return normalized
-  },
+  normalizeCompareOptions: value =>
+    Object.entries(value || {}).map(([name, opt]) => {
+      opt = internals.isString(opt) ? opt.split(/\s+/) : opt
+      return [name, parseInt(opt[0]), opt[1]]
+    }),
 
   parse: (value, format, error) => {
     const date = dayjs(value, format, true)
     return date.isValid()
       ? { value: date.format(DEF_FORMAT) }
-      : { value, errors: error('calendardate.format') }
+      : { value, errors: error('calendardate.format', { format }) }
   }
 }
 
@@ -90,16 +67,29 @@ const joiCalendardate = joi => {
     },
 
     compareOptions: value => {
-      const duration = value =>
-        Array.isArray(value) &&
-        value[0] > 0 &&
-        /^(d(ays?)?|w(eeks?)?|months?|quarters?|y(ears?)?|Q|M)$/.test(value[1])
+      const unitRegex = '(d(ays?)?|w(eeks?)?|months?|quarters?|y(ears?)?|Q|M)'
+      const { error } = joi
+        .object()
+        .pattern(
+          /^(?:exact|max|min)$/,
+          joi.alt([
+            joi.string().pattern(new RegExp(`^[0-9]+\\s+${unitRegex}$`)),
+            joi
+              .array()
+              .items(
+                joi.number().integer().min(0).required(),
+                joi
+                  .string()
+                  .pattern(new RegExp(`^${unitRegex}$`))
+                  .required()
+              )
+              .length(2)
+          ])
+        )
+        .prefs({ allowUnknown: false })
+        .validate(value)
 
-      return (
-        typeof value === 'object' &&
-        value &&
-        Object.values(value).every(duration)
-      )
+      return error === undefined
     }
   }
 
@@ -112,21 +102,17 @@ const joiCalendardate = joi => {
       'calendardate.empty': '{{#label}} is not allowed to be empty',
       'calendardate.eq': '{{#label}} must be equal to {{:#date}}',
       'calendardate.exact':
-        '{{#label}} must differ from {{:#date}} by exactly {{:#duration}}',
+        '{{#label}} must differ from {{:#date}} by exactly {{#limit}} {{#unit}}',
       'calendardate.format':
         '{{#label}} must be a valid date in {{:#format}} format',
-      'calendardate.future': '{{#label}} must be in the future',
       'calendardate.ge': '{{#label}} must be greater or equal to {{:#date}}',
       'calendardate.gt': '{{#label}} must be greater than {{:#date}}',
       'calendardate.le': '{{#label}} must be less or equal to {{:#date}}',
-      'calendardate.less':
-        '{{#label}} must differ from {{:#date}} by less than {{:#duration}}',
       'calendardate.lt': '{{#label}} must be less than {{:#date}}',
-      'calendardate.more':
-        '{{#label}} must differ from {{:#date}} by more than {{:#duration}}',
-      'calendardate.parse':
-        '{{#label}} with value {:[.]} fails to be parsed by a callback',
-      'calendardate.past': '{{#label}} must be in the past',
+      'calendardate.max':
+        '{{#label}} must differ from {{:#date}} by less or equal to {{#limit}} {{#unit}}',
+      'calendardate.min':
+        '{{#label}} must differ from {{:#date}} by more or equal to {{#limit}} {{#unit}}',
       'calendardate.trim':
         '{{#label}} must not have leading or trailing whitespace'
     },
@@ -135,7 +121,8 @@ const joiCalendardate = joi => {
       from: ['object', 'string'],
       method(value, { schema }) {
         if (value instanceof Date) {
-          value = dayjs(value).format(schema.$_getFlag('format') || DEF_FORMAT)
+          schema.$_setFlag('format', DEF_FORMAT, { clone: false })
+          value = dayjs(value).format(DEF_FORMAT)
         } else if (internals.isString(value) && schema.$_getFlag('trim')) {
           value = value.trim()
         }
@@ -157,9 +144,7 @@ const joiCalendardate = joi => {
       }
 
       const format = schema.$_getFlag('format') || DEF_FORMAT
-      return internals.isFunction(format)
-        ? internals.customParse(value, format, error)
-        : internals.parse(value, format, error)
+      return internals.parse(value, format, error)
     },
 
     rules: {
@@ -176,11 +161,8 @@ const joiCalendardate = joi => {
           },
           {
             assert: args.compareOptions,
-            normalize: internals.normalizeCompareOptions,
             name: 'options',
-            message:
-              'expected plain object that have "exact", "less" or "more" properties' +
-              ' which values are an array or a string contain natural number and time unit'
+            message: 'expected object that contain date comparison options'
           }
         ],
         validate(value, { error }, { date, options }, { name, operator }) {
@@ -189,21 +171,21 @@ const joiCalendardate = joi => {
           const diffComare = {
             exact: (diff, unit) =>
               comparisonOp.eq(Math.abs(minuend.diff(sub, unit)), diff),
-            less: (diff, unit) =>
-              comparisonOp.lt(Math.abs(minuend.diff(sub, unit)), diff),
-            more: (diff, unit) =>
-              comparisonOp.gt(Math.abs(minuend.diff(sub, unit)), diff)
+            max: (diff, unit) =>
+              comparisonOp.le(Math.abs(minuend.diff(sub, unit)), diff),
+            min: (diff, unit) =>
+              comparisonOp.ge(Math.abs(minuend.diff(sub, unit)), diff)
           }
 
           if (!operator(minuend.diff(sub), 0)) {
             return error(`calendardate.${name}`, { date })
           }
-          for (const [rule, [diff, unit]] of Object.entries(options ?? {})) {
-            if (!diffComare[rule](diff, unit)) {
-              return error(`calendardate.${rule}`, {
-                date,
-                duration: `${diff} ${unit}`
-              })
+
+          for (const [rule, limit, unit] of internals.normalizeCompareOptions(
+            options
+          )) {
+            if (!diffComare[rule](limit, unit)) {
+              return error(`calendardate.${rule}`, { date, limit, unit })
             }
           }
 
@@ -222,32 +204,22 @@ const joiCalendardate = joi => {
       },
       format: {
         method(format) {
-          if (!internals.isString(format) && !internals.isFunction(format)) {
-            throw new Error(`format expected non-empty string or a function`)
+          if (!internals.isString(format) || format.trim().length === 0) {
+            throw new Error('format expected non-empty string')
           } else if (internals.isString(format) && !args.format(format)) {
-            throw new Error(`format invalid formatting string: '${format}'`)
+            throw new Error(`Invalid formatting string: '${format}'`)
           }
 
           return this.$_setFlag('format', format)
         }
       },
-      future: {
-        args: ['date', 'options'],
-        method(options) {
-          return this.$_addRule({
-            name: 'future',
-            method: 'compare',
-            args: { date: 'today', options },
-            operator: comparisonOp.gt
-          })
-        }
-      },
       ge: {
-        method(date) {
+        args: ['date', 'options'],
+        method(date, options) {
           return this.$_addRule({
             name: 'ge',
             method: 'compare',
-            args: { date },
+            args: { date, options },
             operator: comparisonOp.ge
           })
         }
@@ -264,11 +236,12 @@ const joiCalendardate = joi => {
         }
       },
       le: {
-        method(date) {
+        args: ['date', 'options'],
+        method(date, options) {
           return this.$_addRule({
             name: 'le',
             method: 'compare',
-            args: { date },
+            args: { date, options },
             operator: comparisonOp.le
           })
         }
@@ -284,19 +257,7 @@ const joiCalendardate = joi => {
           })
         }
       },
-      past: {
-        args: ['date', 'options'],
-        method(options) {
-          return this.$_addRule({
-            name: 'past',
-            method: 'compare',
-            args: { date: 'today', options },
-            operator: comparisonOp.lt
-          })
-        }
-      },
       trim: {
-        convert: true,
         method(enabled = true) {
           if (typeof enabled !== 'boolean') {
             throw new Error(`enabled expected boolean, got '${enabled}'`)
@@ -316,22 +277,13 @@ const joiCalendardate = joi => {
       days: {
         from: internals.isCalendarDate,
         to(value) {
-          return -1 * dayjs(value).diff(dayjs().format(DEF_FORMAT), 'day')
-        }
-      },
-      format: {
-        from: internals.isCalendarDate,
-        to(value, { schema }) {
-          const format = schema.$_getFlag('format')
-          return internals.isString(format)
-            ? dayjs(value).format(format)
-            : value
+          return internals.diffToNow(value, 'day')
         }
       },
       months: {
         from: internals.isCalendarDate,
         to(value) {
-          return -1 * dayjs(value).diff(dayjs().format(DEF_FORMAT), 'month')
+          return internals.diffToNow(value, 'month')
         }
       },
       number: {
@@ -343,19 +295,19 @@ const joiCalendardate = joi => {
       quarters: {
         from: internals.isCalendarDate,
         to(value) {
-          return -1 * dayjs(value).diff(dayjs().format(DEF_FORMAT), 'quarter')
+          return internals.diffToNow(value, 'quarter')
         }
       },
       weeks: {
         from: internals.isCalendarDate,
         to(value) {
-          return -1 * dayjs(value).diff(dayjs().format(DEF_FORMAT), 'week')
+          return internals.diffToNow(value, 'week')
         }
       },
       years: {
         from: internals.isCalendarDate,
         to(value) {
-          return -1 * dayjs(value).diff(dayjs().format(DEF_FORMAT), 'year')
+          return internals.diffToNow(value, 'year')
         }
       }
     }
