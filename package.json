@@ -1,6 +1,6 @@
 {
   "name": "joi-calendardate",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Joi extension to validate date that described as a string without time component",
   "author": "Aleksey Chernyaev",
   "license": "BSD-3-Clause",
